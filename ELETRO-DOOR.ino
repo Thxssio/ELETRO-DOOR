@@ -1,6 +1,6 @@
 /*
  * =================================================================
- * PROJETO TRANCA ELETRÔNICA - v5.0 
+ * PROJETO TRANCA ELETRÔNICA - v5.1 
  * =================================================================
  * Autor: Arthur, Claudenir e Thassio
  *
@@ -37,6 +37,11 @@ const int pino_led_verde = 33;
 const int pino_led_amarelo = 25;
 const int pino_led_vermelho = 26;
 
+const int pino_stby = 16;
+const int pino_pwma = 15;
+const int pino_ain1 = 2;
+const int pino_ain2 = 4;
+
 // Estruturas de Dados
 struct TagAutorizada {
   bool ativa;
@@ -52,6 +57,7 @@ char uid_buffer[TAMANHO_UID];
 EepromData eepromData;
 WebServer server(80);
 MFRC522 rfid(pino_sda_rfid, pino_rst_rfid);
+
 const char* ap_ssid = "ELETRO-DOOR";
 const char* ap_password = "batidadecocosenna";
 String master_user = "admin";
@@ -93,6 +99,13 @@ void setup() {
   pinMode(pino_sensor_porta, INPUT_PULLUP);
   pinMode(pino_sensor_tranca, INPUT_PULLUP);
 
+  pinMode(pino_stby, OUTPUT);
+  pinMode(pino_pwma, OUTPUT);
+  pinMode(pino_ain1, OUTPUT);
+  pinMode(pino_ain2, OUTPUT);
+
+  digitalWrite(pino_stby, HIGH);
+
   eepromMutex = xSemaphoreCreateMutex();
   serialMutex = xSemaphoreCreateMutex();
   spiMutex = xSemaphoreCreateMutex();
@@ -124,12 +137,48 @@ void setup() {
   Serial.print("IP para acesso: http://");
   Serial.println(WiFi.softAPIP());
 
-  xTaskCreatePinnedToCore(TaskWebServer, "Task Web Server", 8192, NULL, 2, &TaskHandle_WebServer, 1);
-  xTaskCreatePinnedToCore(TaskSDCheck, "Task SD Check", 4096, NULL, 1, &TaskHandle_SD_Check, 1);
-  xTaskCreatePinnedToCore(TaskProcessamento, "Task Processamento", 8192, NULL, 1, &TaskHandle_Processamento, 1);
-  xTaskCreatePinnedToCore(TaskMonitorSensores, "Task Sensores", 2048, NULL, 2, &TaskHandle_MonitorSensores, 1);
+  xTaskCreatePinnedToCore(
+    TaskWebServer,          // Função da Tarefa
+    "Task Web Server",      // Nome
+    8192,                   // Tamanho da Pilha (a ser otimizado)
+    NULL,                   // Parâmetros
+    2,                      // Prioridade (Baixa)
+    &TaskHandle_WebServer,  // Handle
+    0                       // <<< FIXADO NO CORE 0
+  );
+
+  xTaskCreatePinnedToCore(
+    TaskMonitorSensores,          // Função da Tarefa
+    "Task Sensores",              // Nome
+    8192,                         // Tamanho da Pilha (a ser otimizado)
+    NULL,                         // Parâmetros
+    3,                            // Prioridade (Alta, para garantir a coleta de dados)
+    &TaskHandle_MonitorSensores,  // Handle
+    1                             // <<< FIXADO NO CORE 1
+  );
+
+  xTaskCreatePinnedToCore(
+    TaskProcessamento,          // Função da Tarefa
+    "Task Processamento",       // Nome
+    8192,                       // Tamanho da Pilha (a ser otimizado)
+    NULL,                       // Parâmetros
+    3,                          // Prioridade (Alta, processa os dados dos sensores)
+    &TaskHandle_Processamento,  // Handle
+    1                           // <<< FIXADO NO CORE 1
+  );
+
+  xTaskCreatePinnedToCore(
+    TaskSDCheck,           // Função da Tarefa
+    "Task SD Check",       // Nome
+    4096,                  // Tamanho da Pilha (a ser otimizado)
+    NULL,                  // Parâmetros
+    2,                     // Prioridade (Media)
+    &TaskHandle_SD_Check,  // Handle
+    0                      // <<< FIXADO NO CORE 0
+  );
 
   Serial.println("Setup finalizado. Sistema principal rodando no loop().");
+  fecharTranca();
 }
 
 void loop() {

@@ -125,3 +125,55 @@ void registrarLog(String uid, bool acessoPermitido) {
     }
   }
 }
+
+
+// =================================================================
+// CONTROLE DO MOTOR DA TRANCA
+// =================================================================
+
+
+void abrirTranca() {
+  if (xSemaphoreTake(serialMutex, portMAX_DELAY) == pdTRUE) {
+    Serial.println("Comando: ABRIR TRANCA");
+    xSemaphoreGive(serialMutex);
+  }
+  
+  digitalWrite(pino_ain1, HIGH);
+  digitalWrite(pino_ain2, LOW);
+  analogWrite(pino_pwma, 255); 
+
+  vTaskDelay(pdMS_TO_TICKS(2250)); 
+
+  digitalWrite(pino_ain1, HIGH);
+  digitalWrite(pino_ain2, HIGH);
+  analogWrite(pino_pwma, 0);
+}
+
+void fecharTranca() {
+  if (xSemaphoreTake(serialMutex, portMAX_DELAY) == pdTRUE) {
+    Serial.println("Comando: FECHAR TRANCA");
+    xSemaphoreGive(serialMutex);
+  }
+  
+  digitalWrite(pino_ain1, LOW);
+  digitalWrite(pino_ain2, HIGH);
+  analogWrite(pino_pwma, 255); 
+
+  vTaskDelay(pdMS_TO_TICKS(2250));
+
+  digitalWrite(pino_ain1, HIGH);
+  digitalWrite(pino_ain2, HIGH);
+  analogWrite(pino_pwma, 0);
+}
+
+void aguardarTranca() {
+  if (xSemaphoreTake(serialMutex, portMAX_DELAY) == pdTRUE) {
+    Serial.println("Comando: AGUARDA TRANCA");
+    xSemaphoreGive(serialMutex);
+  }
+  
+  digitalWrite(pino_ain1, HIGH);
+  digitalWrite(pino_ain2, HIGH);
+  analogWrite(pino_pwma, 0);
+  vTaskDelay(pdMS_TO_TICKS(10000));
+}
